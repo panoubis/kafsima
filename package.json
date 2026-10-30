@@ -1,0 +1,22 @@
+{
+  "name": "kafsima",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ημερολόγιο Καυσίμων: καταγραφή ανεφοδιασμών από φωτογραφίες",
+  "scripts": {
+    "android:add": "cap add android",
+    "android:icons": "capacitor-assets generate --android",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "latest",
+    "@capacitor/core": "latest",
+    "@capacitor/filesystem": "latest",
+    "@capacitor/share": "latest"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "latest",
+    "@capacitor/cli": "latest"
+  }
+}

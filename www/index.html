@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f6b63">
+<title>Ημερολόγιο Καυσίμων</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one narrow column, phone-first — pump-style readout on top, new fill card, then the log */
+:root{
+  --bg:#eef1f2; --surface:#ffffff; --fg:#1b2427; --muted:#5d6b70; --line:#d5dcde;
+  --accent:#0f6b63; --accent-fg:#ffffff; --lcd-bg:#16201f; --lcd:#9be7a6; --lcd-dim:#4f7a58;
+  --warn:#9a5b00; --danger:#b3261e; --svc:#e07010; --svc-fg:#ffffff;
+  --f-body:"Commissioner",system-ui,sans-serif; --f-num:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111819; --surface:#192224; --fg:#e4ecec; --muted:#93a4a7; --line:#2b383b;
+  --accent:#4fb8ab; --accent-fg:#0c1414; --lcd-bg:#0a0f0f; --lcd:#9be7a6; --lcd-dim:#3f6448;
+  --warn:#e3a54a; --danger:#f2867e; --svc:#f08a2c; --svc-fg:#1a0e02; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111819; --surface:#192224; --fg:#e4ecec; --muted:#93a4a7; --line:#2b383b;
+  --accent:#4fb8ab; --accent-fg:#0c1414; --lcd-bg:#0a0f0f; --lcd:#9be7a6; --lcd-dim:#3f6448;
+  --warn:#e3a54a; --danger:#f2867e; --svc:#f08a2c; --svc-fg:#1a0e02; color-scheme:dark}
+*{-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+img{max-width:100%}
+html{color-scheme:light}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(48px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px}
+h1{font-size:1.45rem;font-weight:700;margin:0;text-wrap:balance}
+h2{font-size:1.05rem;font-weight:600;margin:0}
+.sub{color:var(--muted);margin:2px 0 0;font-size:.9rem}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+/* pump readout */
+.lcd{background:var(--lcd-bg);color:var(--lcd);border-radius:14px;padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lcd div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.lcd small{color:var(--lcd-dim);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase}
+.lcd b{font-family:var(--f-num);font-size:1.35rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcd .unit{font-size:.75rem;color:var(--lcd-dim);font-weight:500}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.shot{position:relative;border:1.5px dashed var(--line);border-radius:12px;aspect-ratio:3/4;max-width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;overflow:hidden;color:var(--muted);font-size:.85rem;text-align:center;padding:6px}
+.shot.drop{border-color:var(--accent);border-style:solid}
+.shot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.picks{display:flex;flex-direction:column;gap:4px;width:100%;margin-top:6px;position:relative;z-index:2}
+.shot.has .picks{position:absolute;left:6px;right:6px;bottom:6px;width:auto;margin:0;flex-direction:row}
+.pick{position:relative;flex:1;font-size:.74rem;padding:6px 2px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font-weight:600;text-align:center;cursor:pointer;overflow:hidden}
+.pick:hover{border-color:var(--accent)}
+.pick:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+.pick input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.shot .tag{position:absolute;left:6px;top:6px;background:var(--lcd-bg);color:var(--lcd);font-size:.7rem;padding:2px 6px;border-radius:6px;z-index:1}
+.shot svg{width:28px;height:28px}
+.shot strong{color:var(--fg);font-weight:600}
+
+button{font:inherit;border-radius:10px;padding:11px 14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;font-weight:600}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>button{flex:1 1 140px}
+
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:var(--muted);letter-spacing:.02em;min-width:0}
+label.f input{font:inherit;font-family:var(--f-num);font-size:1rem;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg);width:100%;box-sizing:border-box;min-width:0}
+.check{display:flex;align-items:center;gap:10px;font-weight:600;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.check span small{display:block;font-weight:400;color:var(--muted);font-size:.8rem}
+.status{font-size:.88rem;color:var(--muted);min-height:1.2em}
+.status.err{color:var(--danger)}
+
+.log{display:flex;flex-direction:column}
+.entry{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:12px 0;border-top:1px solid var(--line)}
+.entry:first-child{border-top:0}
+.entry .d{font-weight:600}
+.entry .m{color:var(--muted);font-size:.85rem}
+.entry .c{text-align:right;font-family:var(--f-num);font-weight:700;font-size:1.05rem}
+.entry .c small{display:block;font-family:var(--f-body);font-weight:400;font-size:.72rem;color:var(--muted)}
+.pill{display:inline-block;font-size:.7rem;padding:1px 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:1px}
+.pill.full{border-color:var(--accent);color:var(--accent)}
+.entry .acts{grid-column:1/-1;display:flex;gap:8px;margin-top:6px}
+.entry .acts button{padding:5px 10px;font-size:.8rem;font-weight:500}
+.entry .acts .del{color:var(--danger)}
+.empty{color:var(--muted);text-align:center;padding:18px 8px;font-size:.92rem}
+.example{border:1px dashed var(--line);border-radius:10px;padding:0 12px;opacity:.75}
+.note{font-size:.8rem;color:var(--muted)}
+.cars{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{padding:8px 14px;border-radius:99px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip.ghost{border-style:dashed;color:var(--muted);font-weight:500}
+.carEdit{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.carEdit input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--fg);flex:1 1 160px;min-width:0}
+.carEdit button{padding:8px 12px}
+.carEdit .del{color:var(--danger)}
+label.f select{font:inherit;font-size:1rem;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg);width:100%;min-width:0}
+.learn{font-size:.78rem;color:var(--muted)}
+.svc{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border-radius:14px;transition:background .2s,color .2s}
+.svc svg{width:24px;height:24px;flex:0 0 auto}
+.svc .t{flex:1;display:flex;flex-direction:column;min-width:0}
+.svc small{font-weight:400;color:var(--muted);font-size:.85rem}
+.svc .go{color:var(--muted);font-size:1.2rem}
+.svc.due{background:var(--svc);border-color:var(--svc);color:var(--svc-fg);box-shadow:0 0 0 4px color-mix(in srgb,var(--svc) 25%,transparent)}
+.svc.due small,.svc.due .go{color:var(--svc-fg);opacity:.9}
+.bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.svc.due .bar{background:color-mix(in srgb,var(--svc-fg) 30%,transparent)}
+.svc.due .bar i{background:var(--svc-fg)}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.gear{flex:0 0 auto;padding:9px;border-radius:12px;line-height:0}
+.gear svg{width:22px;height:22px}
+.setup{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.setup ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+a{color:var(--accent);font-weight:600}
+label.f input[type=password],label.f input.txt{font-family:var(--f-body)}
+.ok{color:var(--accent)}
+@media (max-width:380px){.lcd b{font-size:1.1rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div>
+      <h1>Ημερολόγιο Καυσίμων</h1>
+      <p class="sub">Φωτογράφισε κοντέρ και αντλία, και το ημερολόγιο γράφεται μόνο του.</p>
+    </div>
+    <button type="button" class="gear" id="gearBtn" aria-label="Ρυθμίσεις" aria-expanded="false" aria-controls="setPanel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <section class="card setup" id="setupCard" hidden aria-labelledby="setupH">
+    <h2 id="setupH">Ένα βήμα για να διαβάζει φωτογραφίες</h2>
+    <ol>
+      <li>Άνοιξε το <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> και συνδέσου με τον λογαριασμό Google σου.</li>
+      <li>Πάτα <b>Create API key</b> και αντέγραψε το κλειδί. Είναι δωρεάν.</li>
+      <li>Πάτα το γρανάζι πάνω δεξιά και επικόλλησέ το.</li>
+    </ol>
+    <p class="note">Χωρίς κλειδί η εφαρμογή δουλεύει κανονικά, απλώς συμπληρώνεις τους αριθμούς με το χέρι.</p>
+  </section>
+
+  <section class="card" id="setPanel" hidden aria-labelledby="setH">
+    <h2 id="setH">Ρυθμίσεις</h2>
+    <div class="fields">
+      <label class="f" style="grid-column:1/-1">Κλειδί Gemini (δωρεάν από το aistudio.google.com/apikey)<input type="password" id="iKey" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
+      <label class="f" style="grid-column:1/-1">Μοντέλο
+        <select id="iModel">
+          <option value="gemini-flash-latest">Gemini Flash, πάντα το νεότερο (προτείνεται)</option>
+          <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+          <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (πιο γρήγορο)</option>
+        </select>
+      </label>
+    </div>
+    <div class="row">
+      <button type="button" id="keyTest">Δοκιμή κλειδιού</button>
+      <button type="button" class="primary" id="setSave">Αποθήκευση</button>
+    </div>
+    <p class="note" id="setNote"></p>
+    <h2 style="margin-top:6px">Αντίγραφο ασφαλείας</h2>
+    <p class="note">Τα δεδομένα μένουν μόνο σε αυτό το κινητό. Κράτα αντίγραφο πριν αλλάξεις κινητό ή απεγκαταστήσεις την εφαρμογή.</p>
+    <div class="row">
+      <button type="button" id="bkExport">Αποθήκευση αντιγράφου</button>
+      <label class="pick" style="flex:1 1 140px;padding:11px 14px;font-size:inherit;border-radius:10px">Επαναφορά από αντίγραφο<input type="file" id="bkImport" accept="application/json,.json"></label>
+    </div>
+    <p class="note">Οι φωτογραφίες στέλνονται στην Google (Gemini) μόνο όταν πατάς «Διάβασε τις φωτογραφίες», για να διαβαστούν οι αριθμοί. Στη δωρεάν χρήση η Google μπορεί να τις χρησιμοποιήσει για να βελτιώσει τις υπηρεσίες της.</p>
+  </section>
+
+  <section aria-label="Αυτοκίνητα" style="display:flex;flex-direction:column;gap:8px">
+    <div class="cars" id="cars"></div>
+    <div class="carEdit" id="carEdit" hidden>
+      <input type="text" id="carName" maxlength="30" placeholder="Όνομα, π.χ. Golf ή Yaris">
+      <button type="button" class="primary" id="carSave">OK</button>
+      <button type="button" id="carCancel">Άκυρο</button>
+      <button type="button" class="del" id="carDel" hidden>Διαγραφή</button>
+    </div>
+    <div class="learn" id="learn"></div>
+  </section>
+
+  <section class="lcd" aria-label="Σύνοψη">
+    <div><small>Μέση κατανάλωση</small><b id="sAvg">—</b><span class="unit">λίτρα / 100 χλμ</span></div>
+    <div><small>Σύνολο €</small><b id="sCost">—</b><span class="unit">σε όλους τους ανεφοδιασμούς</span></div>
+    <div><small>Κοντέρ</small><b id="sOdo">—</b><span class="unit">τελευταία ένδειξη χλμ</span></div>
+  </section>
+
+  <button type="button" class="svc" id="svcBtn" aria-expanded="false" aria-controls="svcPanel">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.1-.4-.4-2.1z"/></svg>
+    <span class="t"><b id="svcTitle">Service</b><small id="svcSub">Ρύθμισε κάθε πόσα χιλιόμετρα</small><span class="bar" id="svcBar" hidden><i id="svcFill"></i></span></span>
+    <span class="go" aria-hidden="true">›</span>
+  </button>
+
+  <section class="card" id="svcPanel" hidden aria-labelledby="svcH">
+    <h2 id="svcH">Service</h2>
+    <div class="fields">
+      <label class="f">Κάθε πόσα χλμ<input type="number" id="iSvcInt" inputmode="numeric" step="500" min="0" placeholder="π.χ. 15000"></label>
+      <label class="f">Τελευταίο service στα (χλμ)<input type="number" id="iSvcKm" inputmode="numeric" step="1" min="0" placeholder="π.χ. 75000"></label>
+      <label class="f">Ημερομηνία τελευταίου<input type="date" id="iSvcDate"></label>
+      <label class="f">Ειδοποίηση πριν από (χλμ)<input type="number" id="iSvcWarn" inputmode="numeric" step="100" min="0" placeholder="1000"></label>
+    </div>
+    <p class="note" id="svcNote"></p>
+    <div class="row">
+      <button type="button" id="svcDone">Έγινε service τώρα</button>
+      <button type="button" class="primary" id="svcSave">Αποθήκευση</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="newH">
+    <h2 id="newH">Νέος ανεφοδιασμός</h2>
+    <div class="photos">
+      <div class="shot" id="shotOdo" data-kind="odo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-4M7 17h10" stroke-linecap="round"/></svg>
+        <strong>Κοντέρ</strong>
+        <div class="picks">
+          <label class="pick">Κάμερα<input type="file" accept="image/*" capture="environment" data-kind="odo" aria-label="Κοντέρ: φωτογραφία με την κάμερα"></label>
+          <label class="pick">Συλλογή<input type="file" accept="image/*" data-kind="odo" aria-label="Κοντέρ: επιλογή από τη συλλογή"></label>
+        </div>
+      </div>
+      <div class="shot" id="shotPump" data-kind="pump">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="3" width="10" height="18" rx="1.5"/><path d="M6.5 7h5M14 9h2.5a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 0 3 0V8l-3-3" stroke-linecap="round"/></svg>
+        <strong>Αντλία</strong>
+        <div class="picks">
+          <label class="pick">Κάμερα<input type="file" accept="image/*" capture="environment" data-kind="pump" aria-label="Αντλία: φωτογραφία με την κάμερα"></label>
+          <label class="pick">Συλλογή<input type="file" accept="image/*" data-kind="pump" aria-label="Αντλία: επιλογή από τη συλλογή"></label>
+        </div>
+      </div>
+      <div class="shot" id="shotRec" data-kind="rec">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21z" stroke-linejoin="round"/><path d="M9 8h6M9 11.5h6M9 15h3" stroke-linecap="round"/></svg>
+        <strong>Απόδειξη</strong>
+        <div class="picks">
+          <label class="pick">Κάμερα<input type="file" accept="image/*" capture="environment" data-kind="rec" aria-label="Απόδειξη: φωτογραφία με την κάμερα"></label>
+          <label class="pick">Συλλογή<input type="file" accept="image/*" data-kind="rec" aria-label="Απόδειξη: επιλογή από τη συλλογή"></label>
+        </div>
+      </div>
+    </div>
+    <button class="primary" id="readBtn" disabled>Διάβασε τις φωτογραφίες</button>
+    <div class="status" id="status" role="status"></div>
+
+    <form id="form" class="fields" novalidate>
+      <label class="f" style="grid-column:1/-1">Αυτοκίνητο<select id="iCar"></select></label>
+      <label class="f">Ημερομηνία<input type="date" id="iDate" required></label>
+      <label class="f">Κοντέρ (χλμ)<input type="number" id="iKm" inputmode="numeric" step="1" min="0" placeholder="π.χ. 84512"></label>
+      <label class="f">Λίτρα<input type="number" id="iL" inputmode="decimal" step="0.01" min="0" placeholder="π.χ. 38,42"></label>
+      <label class="f">Ποσό (€)<input type="number" id="iEur" inputmode="decimal" step="0.01" min="0" placeholder="π.χ. 70,00"></label>
+      <label class="f">Τιμή ανά λίτρο (€)<input type="number" id="iPpl" inputmode="decimal" step="0.001" min="0" placeholder="αυτόματα"></label>
+      <label class="f">Πρατήριο<input type="text" id="iSt" placeholder="προαιρετικό" style="font-family:var(--f-body)"></label>
+      <label class="check" style="grid-column:1/-1"><input type="checkbox" id="iFull" checked><span>Γέμισα τελείως<small>Χρειάζεται για να υπολογιστεί σωστά η κατανάλωση</small></span></label>
+      <div class="row" style="grid-column:1/-1">
+        <button type="button" id="clearBtn">Καθαρισμός</button>
+        <button type="submit" class="primary" id="saveBtn">Αποθήκευση</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="logH">
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <h2 id="logH">Ιστορικό <span id="logCar" style="color:var(--muted);font-weight:500"></span></h2>
+      <button id="exportBtn" style="flex:0 0 auto;padding:7px 12px;font-size:.85rem">Excel (CSV)</button>
+    </div>
+    <div class="log" id="log"></div>
+    <p class="note" id="storeNote"></p>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let entries = [];            // {id,date,km,liters,eur,ppl,full}
+const col = null;            // standalone: everything is stored on the phone
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch{ return false; } }
+};
+const isNative = () => !!window.Capacitor?.isNativePlatform?.();
+const plugin = name => window.Capacitor?.Plugins?.[name] || null;
+
+/* ---------- Gemini ---------- */
+const settings = { key: store.get("geminiKey",""), model: store.get("geminiModel","gemini-flash-latest") };
+const MODELS = ["gemini-flash-latest","gemini-3.8-flash","gemini-3.6-flash","gemini-3.5-flash-lite"];
+const sample = { ready: () => !!settings.key };
+
+/* shrink a photo to ~1600px JPEG and return base64 (no "data:" prefix) */
+function toJpegBase64(file, max = 1600){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth*s); c.height = Math.round(img.naturalHeight*s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject({code:"image_rejected"}); };
+    img.src = url;
+  });
+}
+
+async function geminiJson(prompt, files = []){
+  if (!settings.key) throw {code:"no_key"};
+  const parts = [{text: prompt}];
+  for (const f of files) parts.push({inline_data:{mime_type:"image/jpeg", data: await toJpegBase64(f)}});
+  const body = JSON.stringify({contents:[{role:"user", parts}], generationConfig:{responseMimeType:"application/json", temperature:0}});
+  const order = [settings.model, ...MODELS.filter(m=>m!==settings.model)];
+  let lastErr = {code:"upstream_error"};
+  for (const model of order){
+    let res;
+    try{
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method:"POST", headers:{"Content-Type":"application/json", "x-goog-api-key": settings.key}, body});
+    }catch{ throw {code:"offline"}; }
+    if (res.status === 404){ lastErr = {code:"no_model"}; continue; }        // model retired: try the next one
+    if (res.status === 400 || res.status === 401 || res.status === 403){
+      const t = await res.text().catch(()=> "");
+      throw {code: /API key|API_KEY|permission/i.test(t) ? "bad_key" : "upstream_error"};
+    }
+    if (res.status === 429) throw {code:"rate_limited"};
+    if (!res.ok){ lastErr = {code:"upstream_error"}; continue; }
+    const data = await res.json();
+    const text = (data?.candidates?.[0]?.content?.parts || []).map(p=>p.text||"").join("");
+    try{ return JSON.parse(text); }
+    catch{
+      const m = text.match(/[\[{][\s\S]*[\]}]/);
+      if (m) try{ return JSON.parse(m[0]); }catch{}
+      throw {code:"invalid_json"};
+    }
+  }
+  throw lastErr;
+}
+
+/* ---------- saving files (CSV, backup) ---------- */
+async function saveFile(filename, text, mime){
+  const fs = plugin("Filesystem"), share = plugin("Share");
+  if (isNative() && fs && share){
+    const w = await fs.writeFile({path: filename, data: text, directory: "CACHE", encoding: "utf8"});
+    await share.share({title: filename, files: [w.uri], dialogTitle: "Αποθήκευση ή αποστολή"});
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type: mime}));
+  a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const imgs = {odo:null, pump:null, rec:null};
+const SHOT = {odo:["shotOdo","Κοντέρ"], pump:["shotPump","Αντλία"], rec:["shotRec","Απόδειξη"]};
+const anyImg = () => !!(imgs.odo||imgs.pump||imgs.rec);
+
+/* ---------- cars ---------- */
+let cars = [];               // {id,name,look}
+let carsStored = false;      // false until the list has been written once
+let selCar = null;           // car shown in summary + history
+let lastLook = null;         // dashboard description from the latest odometer photo
+let carEditMode = null;      // "add" | "rename"
+const DEFAULT_CARS = () => [{id:"c1", name:"Αυτοκίνητο 1", look:null}];
+const carOf = e => e.carId || cars[0]?.id;
+const carName = id => cars.find(c=>c.id===id)?.name || "—";
+const carEntries = id => entries.filter(e=>carOf(e)===id);
+const lastKm = id => carEntries(id).reduce((m,e)=>Math.max(m,e.km||0),0);
+selCar = store.get("fuelSelCarId", null);
+
+function renderCars(){
+  if (!cars.find(c=>c.id===selCar)) selCar = cars[0]?.id;
+  const box = $("cars"); box.innerHTML = "";
+  for (const c of cars){
+    const b = document.createElement("button"); b.type="button"; b.className="chip";
+    b.textContent = c.name; b.setAttribute("aria-pressed", c.id===selCar);
+    b.onclick = () => {
+      if (c.id===selCar){ openCarEdit("rename"); return; }
+      selCar = c.id; store.set("fuelSelCarId", selCar);
+      $("svcPanel").hidden = true; $("svcBtn").setAttribute("aria-expanded", false);
+      if (!editingId) $("iCar").value = selCar;
+      renderAll();
+    };
+    box.appendChild(b);
+  }
+  const add = document.createElement("button"); add.type="button"; add.className="chip ghost";
+  add.textContent = "+ Αυτοκίνητο"; add.onclick = () => openCarEdit("add"); box.appendChild(add);
+
+  const sel = $("iCar"), keep = sel.value;
+  sel.innerHTML = cars.map(c=>`<option value="${c.id}"></option>`).join("");
+  [...sel.options].forEach((o,i)=>o.textContent = cars[i].name);
+  sel.value = cars.find(c=>c.id===keep) ? keep : selCar;
+
+  const cur = cars.find(c=>c.id===selCar);
+  $("learn").textContent = cars.length < 2 ? "Πάτα ξανά το όνομα για μετονομασία." :
+    cur?.look ? `Αναγνωρίζεται από: ${cur.look}` : "Δεν έχει μάθει ακόμα πώς μοιάζει το κοντέρ του. Θα το μάθει με την πρώτη φωτογραφία κοντέρ που αποθηκεύσεις σε αυτό.";
+  $("logCar").textContent = cars.length > 1 ? "· " + (cur?.name||"") : "";
+}
+function openCarEdit(mode){
+  carEditMode = mode; $("carEdit").hidden = false;
+  $("carName").value = mode==="rename" ? carName(selCar) : "";
+  $("carDel").hidden = !(mode==="rename" && cars.length>1 && carEntries(selCar).length===0);
+  $("carName").focus();
+}
+$("carCancel").onclick = () => { $("carEdit").hidden = true; };
+$("carSave").onclick = async () => {
+  const name = $("carName").value.trim().slice(0,30);
+  if (!name) return $("carName").focus();
+  if (carEditMode==="add"){ const id="c"+Date.now().toString(36); cars=[...cars,{id,name,look:null}]; selCar=id; }
+  else cars = cars.map(c=>c.id===selCar?{...c,name}:c);
+  $("carEdit").hidden = true; await saveCars(); renderAll();
+};
+$("carName").addEventListener("keydown", e => { if (e.key==="Enter"){ e.preventDefault(); $("carSave").click(); } });
+$("carDel").onclick = async () => {
+  if (carEntries(selCar).length) return;
+  cars = cars.filter(c=>c.id!==selCar); selCar = cars[0]?.id;
+  $("carEdit").hidden = true; await saveCars(); renderAll();
+};
+
+/* choose the car: Claude's visual guess, checked against odometer continuity */
+function pickCar(guess, km){
+  const valid = cars.find(c=>c.id===guess) ? guess : null;
+  if (km==null) return {id: valid || $("iCar").value, why: valid ? "από την εμφάνιση του κοντέρ" : null};
+  const fits = id => { const last = lastKm(id); return !last || (km >= last && km - last < 5000); };
+  if (valid && fits(valid)) return {id:valid, why:"από την εμφάνιση του κοντέρ"};
+  const plausible = cars.filter(c=>lastKm(c.id) && fits(c.id));
+  if (plausible.length===1) return {id:plausible[0].id, why:"από τα χιλιόμετρα"};
+  if (valid) return {id:valid, why:"από την εμφάνιση (τα χιλιόμετρα δεν ταιριάζουν, έλεγξέ τα)"};
+  return {id:$("iCar").value, why:null};
+}
+
+const nf = (v, d) => (v == null || isNaN(v)) ? "—" : Number(v).toLocaleString("el-GR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const today = () => new Date().toISOString().slice(0,10);
+$("iDate").value = today();
+
+/* ---------- consumption ---------- */
+function compute(list){
+  const asc = [...list].sort((a,b)=>a.km-b.km || a.date.localeCompare(b.date));
+  const cons = {};
+  let lastFull = null, litersSince = 0, totL = 0, totKm = 0;
+  for (const e of asc){
+    litersSince += e.liters||0;
+    if (e.full){
+      if (lastFull && e.km > lastFull.km){
+        const km = e.km - lastFull.km;
+        cons[e.id] = {l100: litersSince/km*100, km};
+        totL += litersSince; totKm += km;
+      }
+      lastFull = e; litersSince = 0;
+    }
+  }
+  return {cons, avg: totKm ? totL/totKm*100 : null};
+}
+
+function renderAll(){ renderCars(); render(); renderService(); }
+
+/* ---------- service ---------- */
+function svcState(car){
+  const s = car?.service;
+  if (!s?.interval) return null;
+  const base = s.lastKm || 0;
+  const cur = Math.max(lastKm(car.id), base);
+  const next = base + s.interval, left = next - cur;
+  const warn = s.warn ?? 1000;
+  return {next, left, cur, due: left <= warn, over: left < 0, pct: Math.min(100, Math.max(0, (cur-base)/s.interval*100))};
+}
+function renderService(){
+  const car = cars.find(c=>c.id===selCar), st = svcState(car), btn = $("svcBtn");
+  btn.classList.toggle("due", !!st?.due);
+  $("svcBar").hidden = !st;
+  const multi = cars.length>1 ? ` · ${car?.name||""}` : "";
+  $("svcH").textContent = "Service" + multi;
+  if (!st){ $("svcTitle").textContent = "Service" + multi; $("svcSub").textContent = "Ρύθμισε κάθε πόσα χιλιόμετρα θέλεις υπενθύμιση"; return; }
+  $("svcFill").style.width = st.pct + "%";
+  $("svcTitle").textContent = (st.over ? "Ώρα για service!" : st.due ? "Πλησιάζει το service" : "Service") + multi;
+  $("svcSub").textContent = st.over
+    ? `Έχει περάσει κατά ${nf(-st.left,0)} χλμ (ήταν στα ${nf(st.next,0)})`
+    : `Σε ${nf(st.left,0)} χλμ, στα ${nf(st.next,0)} χλμ`;
+}
+$("svcBtn").onclick = () => {
+  const p = $("svcPanel"), open = p.hidden;
+  p.hidden = !open; $("svcBtn").setAttribute("aria-expanded", open);
+  if (!open) return;
+  const s = cars.find(c=>c.id===selCar)?.service || {};
+  $("iSvcInt").value = s.interval || "";
+  $("iSvcKm").value = s.lastKm ?? (lastKm(selCar) || "");
+  $("iSvcDate").value = s.lastDate || "";
+  $("iSvcWarn").value = s.warn ?? 1000;
+  $("svcNote").textContent = "Γίνεται πορτοκαλί όταν μείνουν λιγότερα χιλιόμετρα από την «ειδοποίηση πριν από». Τα τρέχοντα χιλιόμετρα βγαίνουν από τον τελευταίο ανεφοδιασμό.";
+  $("iSvcInt").focus();
+};
+async function saveService(svc){
+  cars = cars.map(c=>c.id===selCar ? {...c, service:svc} : c);
+  $("svcPanel").hidden = true; $("svcBtn").setAttribute("aria-expanded", false);
+  await saveCars(); renderAll();
+}
+$("svcSave").onclick = async () => {
+  const interval = parseInt($("iSvcInt").value,10);
+  if (!(interval>0)){ $("svcNote").textContent = "Συμπλήρωσε κάθε πόσα χιλιόμετρα γίνεται το service."; return $("iSvcInt").focus(); }
+  const lk = parseInt($("iSvcKm").value,10), w = parseInt($("iSvcWarn").value,10);
+  await saveService({interval, lastKm: lk>=0 ? lk : (lastKm(selCar)||0), lastDate: $("iSvcDate").value||null, warn: w>=0 ? w : 1000});
+};
+$("svcDone").onclick = async () => {
+  const s = cars.find(c=>c.id===selCar)?.service || {};
+  const interval = parseInt($("iSvcInt").value,10) || s.interval;
+  if (!(interval>0)){ $("svcNote").textContent = "Πρώτα συμπλήρωσε κάθε πόσα χιλιόμετρα γίνεται το service."; return $("iSvcInt").focus(); }
+  const w = parseInt($("iSvcWarn").value,10);
+  await saveService({interval, lastKm: lastKm(selCar)||parseInt($("iSvcKm").value,10)||0, lastDate: today(), warn: w>=0 ? w : 1000});
+};
+function render(){
+  const list = carEntries(selCar);
+  const {cons, avg} = compute(list);
+  $("sAvg").textContent = avg ? nf(avg,1) : "—";
+  const cost = list.reduce((s,e)=>s+(e.eur||0),0);
+  $("sCost").textContent = list.length ? nf(cost,2) : "—";
+  const maxKm = list.reduce((m,e)=>Math.max(m,e.km||0),0);
+  $("sOdo").textContent = maxKm ? nf(maxKm,0) : "—";
+
+  const log = $("log"); log.innerHTML = "";
+  if (!list.length && entries.length){
+    log.innerHTML = `<div class="empty">Δεν υπάρχει ακόμα καταχώρηση για αυτό το αυτοκίνητο.</div>`;
+    return;
+  }
+  if (!list.length){
+    log.innerHTML = `<div class="empty">Δεν υπάρχει ακόμα καταχώρηση. Βγάλε τις δύο φωτογραφίες στον επόμενο ανεφοδιασμό.<br>Η κατανάλωση εμφανίζεται από τον δεύτερο «γέμισα τελείως».</div>
+    <div class="example"><div class="entry"><div><div class="d">Παράδειγμα · 12/10/2026 <span class="pill full">γεμάτο</span></div>
+    <div class="m num">84.512 χλμ · 38,42 L · 70,00 € · 1,822 €/L</div></div><div class="c">6,4<small>L/100 · 600 χλμ</small></div></div></div>`;
+    return;
+  }
+  const desc = [...list].sort((a,b)=>b.km-a.km || b.date.localeCompare(a.date));
+  for (const e of desc){
+    const c = cons[e.id];
+    const div = document.createElement("div"); div.className = "entry";
+    const d = e.date ? e.date.split("-").reverse().join("/") : "";
+    div.innerHTML = `<div><div class="d"></div><div class="m num"></div></div>
+      <div class="c"></div>
+      <div class="acts"><button type="button" class="ed">Διόρθωση</button><button type="button" class="del">Διαγραφή</button></div>`;
+    div.querySelector(".d").innerHTML = `${d} <span class="pill ${e.full?"full":""}">${e.full?"γεμάτο":"μερικό"}</span>`;
+    div.querySelector(".m").textContent = `${nf(e.km,0)} χλμ · ${nf(e.liters,2)} L · ${nf(e.eur,2)} € · ${nf(e.ppl,3)} €/L${e.station?" · "+e.station:""}`;
+    div.querySelector(".c").innerHTML = c ? `${nf(c.l100,1)}<small>L/100 · ${nf(c.km,0)} χλμ</small>` : `<small>${e.full?"πρώτο γέμισμα":"μετράει στο επόμενο"}</small>`;
+    div.querySelector(".ed").onclick = () => editEntry(e);
+    const del = div.querySelector(".del");
+    del.onclick = async () => {
+      if (del.dataset.armed){ await removeEntry(e.id); return; }
+      del.dataset.armed = 1; del.textContent = "Σίγουρα; Πάτα ξανά";
+      setTimeout(()=>{ if(del.isConnected){ delete del.dataset.armed; del.textContent="Διαγραφή"; } }, 4000);
+    };
+    log.appendChild(div);
+  }
+}
+
+/* ---------- storage ---------- */
+function loadLocal(){
+  try{ entries = JSON.parse(localStorage.getItem("fuelLog")||"[]"); }catch{ entries=[]; }
+  try{ const c = JSON.parse(localStorage.getItem("fuelCars")||"null"); cars = c?.length ? c : DEFAULT_CARS(); }catch{ cars = DEFAULT_CARS(); }
+}
+function saveLocal(){ try{ localStorage.setItem("fuelLog", JSON.stringify(entries)); localStorage.setItem("fuelCars", JSON.stringify(cars)); }catch{} }
+
+async function saveCars(){
+  if (col){ await col.doc("cars").set({list:cars}); carsStored = true; }
+  else saveLocal();
+}
+async function saveEntry(e){
+  if (col){ await col.doc(e.id).set(e); }
+  else { const i = entries.findIndex(x=>x.id===e.id); if(i>=0) entries[i]=e; else entries.push(e); saveLocal(); renderAll(); }
+}
+async function removeEntry(id){
+  if (col){ await col.doc(id).delete(); }
+  else { entries = entries.filter(x=>x.id!==id); saveLocal(); renderAll(); }
+}
+
+/* ---------- photos ---------- */
+function setShot(which, file){
+  const box = $(SHOT[which][0]);
+  box.querySelectorAll("img,.tag").forEach(n=>n.remove());
+  imgs[which] = file || null;
+  box.classList.toggle("has", !!file);
+  if (file){
+    const img = document.createElement("img"); img.alt = "";
+    img.src = URL.createObjectURL(file); box.appendChild(img);
+    const t = document.createElement("span"); t.className="tag"; t.textContent = SHOT[which][1]+" ✓"; box.appendChild(t);
+    if (file.lastModified){ const d=new Date(file.lastModified); if(!isNaN(d)) $("iDate").value = d.toISOString().slice(0,10); }
+  }
+  $("readBtn").disabled = !anyImg();
+}
+document.querySelectorAll(".shot input[type=file]").forEach(inp => {
+  inp.onchange = () => { const f = inp.files[0]; if (f) setShot(inp.dataset.kind, f); inp.value = ""; };
+});
+/* drag a photo onto a box (computer) */
+document.querySelectorAll(".shot").forEach(box => {
+  box.addEventListener("dragover", e => { e.preventDefault(); box.classList.add("drop"); });
+  box.addEventListener("dragleave", () => box.classList.remove("drop"));
+  box.addEventListener("drop", e => {
+    e.preventDefault(); box.classList.remove("drop");
+    const f = [...(e.dataTransfer?.files||[])].find(f=>f.type.startsWith("image/"));
+    if (f) setShot(box.dataset.kind, f);
+  });
+});
+
+function status(msg, err){ const s=$("status"); s.textContent=msg||""; s.classList.toggle("err",!!err); }
+
+const DESC = {
+  odo: `a car's instrument cluster: read the TOTAL odometer in km (odometer_km), NOT the trip meter (labelled TRIP, A or B, often with a decimal). Also give "dashboard": a short description (max 20 words, in Greek) of features that tell this cluster apart from another car's: brand logo, analog or digital, dial layout and top speed, backlight colour, screen shape. And "car_id": which of the user's cars this is, from the list below, or null if you cannot tell`,
+  pump: `a fuel pump display, possibly with Greek labels (ΠΟΣΟ/ΑΞΙΑ = amount in €, ΛΙΤΡΑ = litres, ΤΙΜΗ ΛΙΤΡΟΥ = €/litre): read liters, total_eur, price_per_liter`,
+  rec: `a petrol station receipt, probably Greek (ΛΙΤΡΑ/ΠΟΣΟΤΗΤΑ = litres, ΤΙΜΗ ΜΟΝΑΔΑΣ = €/litre, ΣΥΝΟΛΟ/ΠΛΗΡΩΤΕΟ = total € including VAT, ΗΜΕΡΟΜΗΝΙΑ = date, usually DD/MM/YYYY). Read liters, total_eur, price_per_liter, the purchase date as YYYY-MM-DD (date) and the station or company name (station). Use the fuel line, not VAT lines`
+};
+const SHAPE = `{"odometer_km": number|null, "liters": number|null, "total_eur": number|null, "price_per_liter": number|null, "date": "YYYY-MM-DD"|null, "station": string|null, "dashboard": string|null, "car_id": string|null}`;
+function promptFor(kinds){
+  const list = kinds.map((k,i)=>`Image ${i+1}: ${DESC[k]}.`).join("\n");
+  const carList = kinds.includes("odo") ? "\nThe user's cars:\n" + cars.map(c=>
+    `- car_id "${c.id}", name "${c.name}", dashboard: ${c.look ? c.look : "not known yet"}, last odometer: ${lastKm(c.id) || "unknown"} km`).join("\n") +
+    "\nMatch by the dashboard look first; the new odometer should be a bit higher than that car's last odometer. If only one car has a known dashboard and this clearly is not it, pick the other car.\n" : "\n";
+  return `These photos are from one car refuelling.\n${list}${carList}${kinds.includes("pump")&&kinds.includes("rec")?"If the pump and the receipt disagree, trust the receipt.\n":""}Use null for anything not visible. Reply with only JSON: ${SHAPE}`;
+}
+
+const errText = code => ({
+  no_key:"Για να διαβάζει φωτογραφίες, βάλε το δωρεάν κλειδί Gemini από το γρανάζι πάνω δεξιά.",
+  bad_key:"Το κλειδί Gemini δεν δουλεύει. Έλεγξέ το από το γρανάζι πάνω δεξιά.",
+  offline:"Δεν υπάρχει σύνδεση στο ίντερνετ. Συμπλήρωσε με το χέρι ή δοκίμασε αργότερα.",
+  no_model:"Το μοντέλο Gemini δεν βρέθηκε. Διάλεξε άλλο από το γρανάζι πάνω δεξιά.",
+  rate_limited:"Τελείωσαν οι δωρεάν αναγνώσεις για τώρα. Δοκίμασε σε λίγα λεπτά ή αύριο.",
+  image_rejected:"Η φωτογραφία δεν διαβάστηκε. Δοκίμασε άλλη, πιο καθαρή.",
+  invalid_json:"Δεν βρέθηκαν αριθμοί. Δοκίμασε πιο καθαρή φωτογραφία ή συμπλήρωσε με το χέρι."
+}[code] || "Κάτι πήγε στραβά στην ανάγνωση. Δοκίμασε ξανά ή συμπλήρωσε με το χέρι.");
+
+$("readBtn").onclick = async () => {
+  const btn = $("readBtn");
+  if (!sample.ready()){ status(errText("no_key"), true); openSettings(true); return; }
+  btn.disabled = true;
+  status("Διαβάζω τις φωτογραφίες… (λίγα δευτερόλεπτα)");
+  try{
+    const kinds = ["odo","pump","rec"].filter(k=>imgs[k]);
+    const r = await geminiJson(promptFor(kinds), kinds.map(k=>imgs[k])) || {};
+    const n = v => (v==null || isNaN(Number(v))) ? null : Number(v);
+    let km=n(r.odometer_km), L=n(r.liters), eur=n(r.total_eur), ppl=n(r.price_per_liter);
+    if (typeof r.date==="string" && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) $("iDate").value = r.date;
+    if (typeof r.station==="string" && r.station.trim()) $("iSt").value = r.station.trim().slice(0,60);
+    const hasFuel = imgs.pump || imgs.rec;
+    if (L && eur && !ppl) ppl = eur/L;
+    if (L && ppl && !eur) eur = L*ppl;
+    if (eur && ppl && !L) L = eur/ppl;
+    if (km!=null) $("iKm").value = Math.round(km);
+    if (L!=null) $("iL").value = L.toFixed(2);
+    if (eur!=null) $("iEur").value = eur.toFixed(2);
+    if (ppl!=null) $("iPpl").value = ppl.toFixed(3);
+    let carMsg = "";
+    if (imgs.odo){
+      lastLook = typeof r.dashboard==="string" && r.dashboard.trim() ? r.dashboard.trim().slice(0,160) : null;
+      if (cars.length > 1){
+        const p = pickCar(typeof r.car_id==="string" ? r.car_id : null, km);
+        $("iCar").value = p.id;
+        carMsg = p.why ? `Αυτοκίνητο: ${carName(p.id)} (${p.why}). ` : "Δεν αναγνώρισα το αυτοκίνητο, διάλεξέ το. ";
+      }
+    }
+    const missing = [km==null&&imgs.odo&&"κοντέρ", L==null&&hasFuel&&"λίτρα", eur==null&&hasFuel&&"ποσό"].filter(Boolean);
+    status(carMsg + (missing.length ? `Δεν βρέθηκε: ${missing.join(", ")}. Συμπλήρωσέ το με το χέρι.` : "Έλεγξε τους αριθμούς και πάτα Αποθήκευση."), missing.length>0);
+  }catch(e){
+    status(errText(e?.code), true);
+  }finally{ btn.disabled = !anyImg(); }
+};
+
+/* auto-fill the third value from the other two */
+function linkFields(src){
+  const L=parseFloat($("iL").value), eur=parseFloat($("iEur").value), ppl=parseFloat($("iPpl").value);
+  if (src!=="ppl" && L>0 && eur>0) $("iPpl").value=(eur/L).toFixed(3);
+  else if (src==="ppl" && L>0 && ppl>0 && !(eur>0)) $("iEur").value=(L*ppl).toFixed(2);
+}
+$("iL").addEventListener("change",()=>linkFields("L"));
+$("iEur").addEventListener("change",()=>linkFields("eur"));
+$("iPpl").addEventListener("change",()=>linkFields("ppl"));
+
+/* ---------- form ---------- */
+let editingId = null;
+function clearForm(){
+  editingId=null; lastLook=null; $("form").reset(); $("iDate").value=today(); $("iFull").checked=true; $("iCar").value=selCar;
+  for (const k of ["odo","pump","rec"]) setShot(k,null);
+  $("readBtn").disabled=true; $("saveBtn").textContent="Αποθήκευση"; status("");
+}
+$("clearBtn").onclick = clearForm;
+
+function editEntry(e){
+  editingId=e.id; $("iCar").value=carOf(e); $("iDate").value=e.date; $("iKm").value=e.km; $("iL").value=e.liters;
+  $("iEur").value=e.eur??""; $("iPpl").value=e.ppl??""; $("iSt").value=e.station||""; $("iFull").checked=!!e.full;
+  $("saveBtn").textContent="Αποθήκευση αλλαγών"; status("Διορθώνεις παλιά καταχώρηση.");
+  $("newH").scrollIntoView({behavior:"smooth"});
+}
+
+$("form").onsubmit = async ev => {
+  ev.preventDefault();
+  const km=parseFloat($("iKm").value), L=parseFloat($("iL").value);
+  let eur=parseFloat($("iEur").value), ppl=parseFloat($("iPpl").value);
+  if (!(km>0)) return status("Συμπλήρωσε τα χιλιόμετρα του κοντέρ.", true);
+  if (!(L>0)) return status("Συμπλήρωσε τα λίτρα.", true);
+  if (!(ppl>0) && eur>0) ppl=eur/L;
+  if (!(eur>0) && ppl>0) eur=ppl*L;
+  const carId = $("iCar").value || cars[0].id;
+  const e = {id: editingId || ("f"+Date.now().toString(36)), carId, date:$("iDate").value||today(), km:Math.round(km),
+    liters:+L.toFixed(2), eur: eur>0?+eur.toFixed(2):null, ppl: ppl>0?+ppl.toFixed(3):null, station:$("iSt").value.trim()||null, full:$("iFull").checked};
+  const prevMax = carEntries(carId).filter(x=>x.id!==e.id).reduce((m,x)=>Math.max(m,x.km),0);
+  const learned = lastLook && !cars.find(c=>c.id===carId)?.look;
+  $("saveBtn").disabled=true;
+  try{
+    if (learned) cars = cars.map(c=>c.id===carId?{...c,look:lastLook}:c);
+    if (learned || (col && !carsStored)) await saveCars();
+    await saveEntry(e);
+    selCar = carId; store.set("fuelSelCarId", selCar);
+    clearForm(); renderAll();
+    const name = cars.length>1 ? ` στο ${carName(carId)}` : "";
+    const sv = svcState(cars.find(c=>c.id===carId));
+    const svMsg = sv?.over ? " Ώρα για service!" : sv?.due ? ` Το service είναι σε ${nf(sv.left,0)} χλμ.` : "";
+    status(e.km < prevMax ? `Αποθηκεύτηκε${name}. Προσοχή: τα χιλιόμετρα είναι λιγότερα από την προηγούμενη καταχώρηση.` : `Αποθηκεύτηκε${name}.${learned&&cars.length>1?" Έμαθε και πώς μοιάζει το κοντέρ του.":""}${svMsg}`, e.km < prevMax);
+  }catch(err){ status("Δεν αποθηκεύτηκε. Δοκίμασε ξανά.", true); }
+  finally{ $("saveBtn").disabled=false; }
+};
+
+/* ---------- export ---------- */
+$("exportBtn").onclick = async () => {
+  const list = carEntries(selCar);
+  if (!list.length) return status("Δεν υπάρχουν καταχωρήσεις για λήψη.", true);
+  const {cons} = compute(list);
+  const dec = (v,d) => v==null ? "" : Number(v).toFixed(d).replace(".",",");
+  const rows = [["Αυτοκίνητο","Ημερομηνία","Χιλιόμετρα","Λίτρα","Ποσό €","Τιμή €/L","Γεμάτο","Πρατήριο","Διανυθέντα χλμ","Κατανάλωση L/100"]];
+  const cn = carName(selCar).replace(/[;\r\n]/g," ");
+  for (const e of [...list].sort((a,b)=>a.km-b.km)){
+    const c=cons[e.id];
+    rows.push([cn, e.date.split("-").reverse().join("/"), e.km, dec(e.liters,2), dec(e.eur,2), dec(e.ppl,3), e.full?"Ναι":"Όχι", (e.station||"").replace(/[;\r\n]/g," "), c?c.km:"", c?dec(c.l100,1):""]);
+  }
+  const csv = "﻿" + rows.map(r=>r.join(";")).join("\r\n");
+  const safe = cn.replace(/[^\p{L}\p{N}]+/gu,"_");
+  try{ await saveFile(`kafsima_${cars.length>1 ? safe+"_" : ""}${today()}.csv`, csv, "text/csv"); }
+  catch(e){ if (!/cancel/i.test(e?.message||"")) status("Η αποθήκευση του αρχείου δεν ολοκληρώθηκε.", true); }
+};
+
+/* ---------- settings ---------- */
+function openSettings(force){
+  const p = $("setPanel"), open = force || p.hidden;
+  p.hidden = !open; $("gearBtn").setAttribute("aria-expanded", open);
+  if (!open) return;
+  $("iKey").value = settings.key; $("iModel").value = settings.model; $("setNote").textContent = "";
+  p.scrollIntoView({behavior:"smooth", block:"start"});
+}
+$("gearBtn").onclick = () => openSettings(false);
+function applySettings(){
+  settings.key = $("iKey").value.trim(); settings.model = $("iModel").value;
+  store.set("geminiKey", settings.key); store.set("geminiModel", settings.model);
+  $("setupCard").hidden = !!settings.key;
+}
+$("setSave").onclick = () => {
+  applySettings();
+  $("setNote").textContent = settings.key ? "Αποθηκεύτηκε." : "Αποθηκεύτηκε χωρίς κλειδί. Οι φωτογραφίες δεν θα διαβάζονται.";
+  $("setNote").className = "note ok";
+};
+$("keyTest").onclick = async () => {
+  applySettings();
+  const n = $("setNote"); n.className = "note"; n.textContent = "Δοκιμάζω…";
+  try{
+    const r = await geminiJson('Reply with only this JSON: {"ok": true}');
+    n.textContent = r?.ok ? "Το κλειδί δουλεύει." : "Απάντησε, αλλά κάτι δεν πήγε καλά. Δοκίμασε άλλο μοντέλο.";
+    n.className = r?.ok ? "note ok" : "note";
+  }catch(e){ n.textContent = errText(e?.code); n.className = "note status err"; }
+};
+
+/* ---------- backup ---------- */
+$("bkExport").onclick = async () => {
+  const data = JSON.stringify({app:"kafsima", version:1, savedAt:new Date().toISOString(), cars, entries}, null, 1);
+  try{ await saveFile(`kafsima_antigrafo_${today()}.json`, data, "application/json"); $("setNote").textContent = ""; }
+  catch(e){ if (!/cancel/i.test(e?.message||"")){ $("setNote").textContent = "Το αντίγραφο δεν αποθηκεύτηκε."; } }
+};
+$("bkImport").onchange = async ev => {
+  const f = ev.target.files[0]; ev.target.value = "";
+  if (!f) return;
+  const n = $("setNote");
+  try{
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d?.cars) || !Array.isArray(d?.entries)) throw 0;
+    const firstCar = d.cars[0]?.id || "c1";
+    cars = d.cars.length ? d.cars : DEFAULT_CARS();
+    entries = d.entries.filter(e=>e && e.id && e.km>0).map(e=>({...e, carId: e.carId || firstCar}));
+    saveLocal(); renderAll();
+    n.className = "note ok"; n.textContent = `Επαναφέρθηκαν ${entries.length} ανεφοδιασμοί και ${cars.length} αυτοκίνητα.`;
+  }catch{ n.className = "note status err"; n.textContent = "Αυτό το αρχείο δεν είναι αντίγραφο της εφαρμογής."; }
+};
+
+/* ---------- boot ---------- */
+loadLocal(); renderAll();
+$("setupCard").hidden = !!settings.key;
+$("storeNote").textContent = "Τα δεδομένα αποθηκεύονται μόνο σε αυτό το κινητό. Κράτα αντίγραφο από το γρανάζι.";
+</script>
+</body>
+</html>

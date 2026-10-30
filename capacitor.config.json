@@ -1,0 +1,8 @@
+{
+  "appId": "com.kafsimalog.app",
+  "appName": "Καύσιμα",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}
