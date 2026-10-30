@@ -144,7 +144,10 @@ label.f input[type=password],label.f input.txt{font-family:var(--f-body)}
 
   <section class="card" id="setPanel" hidden aria-labelledby="setH">
     <h2 id="setH">Ρυθμίσεις</h2>
-    <div class="fields">
+    <p class="note" id="aiMode"></p>
+    <details id="ownKey">
+      <summary class="note" style="cursor:pointer;font-weight:600">Προχωρημένο: δικό μου κλειδί Gemini</summary>
+    <div class="fields" style="margin-top:10px">
       <label class="f" style="grid-column:1/-1">Κλειδί Gemini (δωρεάν από το aistudio.google.com/apikey)<input type="password" id="iKey" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
       <label class="f" style="grid-column:1/-1">Μοντέλο
         <select id="iModel">
@@ -155,8 +158,9 @@ label.f input[type=password],label.f input.txt{font-family:var(--f-body)}
         </select>
       </label>
     </div>
+    </details>
     <div class="row">
-      <button type="button" id="keyTest">Δοκιμή κλειδιού</button>
+      <button type="button" id="keyTest">Δοκιμή ανάγνωσης</button>
       <button type="button" class="primary" id="setSave">Αποθήκευση</button>
     </div>
     <p class="note" id="setNote"></p>
@@ -264,6 +268,7 @@ label.f input[type=password],label.f input.txt{font-family:var(--f-body)}
   </section>
 </div>
 
+<script src="config.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let entries = [];            // {id,date,km,liters,eur,ppl,full}
@@ -276,9 +281,11 @@ const isNative = () => !!window.Capacitor?.isNativePlatform?.();
 const plugin = name => window.Capacitor?.Plugins?.[name] || null;
 
 /* ---------- Gemini ---------- */
+const CFG = window.KAFSIMA_CONFIG || {};
 const settings = { key: store.get("geminiKey",""), model: store.get("geminiModel","gemini-flash-latest") };
 const MODELS = ["gemini-flash-latest","gemini-3.8-flash","gemini-3.6-flash","gemini-3.5-flash-lite"];
-const sample = { ready: () => !!settings.key };
+const hasProxy = () => !!CFG.aiUrl;
+const sample = { ready: () => !!settings.key || hasProxy() };
 
 /* shrink a photo to ~1600px JPEG and return base64 (no "data:" prefix) */
 function toJpegBase64(file, max = 1600){
@@ -297,8 +304,27 @@ function toJpegBase64(file, max = 1600){
   });
 }
 
+/* without a personal key: go through the app's own relay, which holds the key */
+async function proxyJson(prompt, files){
+  const images = [];
+  for (const f of files) images.push(await toJpegBase64(f));
+  let res;
+  try{
+    res = await fetch(CFG.aiUrl.replace(/\/$/,"") + "/read", {
+      method:"POST", headers:{"Content-Type":"application/json", "x-app-token": CFG.appToken || ""},
+      body: JSON.stringify({prompt, images})});
+  }catch{ throw {code:"offline"}; }
+  const data = await res.json().catch(()=>({}));
+  if (res.ok && data && "result" in data) return data.result;
+  const map = {rate_limited:"rate_limited", invalid_json:"invalid_json", bad_request:"image_rejected"};
+  throw {code: map[data?.error] || "service_down"};
+}
+
 async function geminiJson(prompt, files = []){
-  if (!settings.key) throw {code:"no_key"};
+  if (!settings.key){
+    if (hasProxy()) return proxyJson(prompt, files);
+    throw {code:"no_key"};
+  }
   const parts = [{text: prompt}];
   for (const f of files) parts.push({inline_data:{mime_type:"image/jpeg", data: await toJpegBase64(f)}});
   const body = JSON.stringify({contents:[{role:"user", parts}], generationConfig:{responseMimeType:"application/json", temperature:0}});
@@ -606,6 +632,7 @@ function promptFor(kinds){
 
 const errText = code => ({
   no_key:"Για να διαβάζει φωτογραφίες, βάλε το δωρεάν κλειδί Gemini από το γρανάζι πάνω δεξιά.",
+  service_down:"Η υπηρεσία ανάγνωσης δεν απαντάει τώρα. Συμπλήρωσε με το χέρι ή δοκίμασε αργότερα.",
   bad_key:"Το κλειδί Gemini δεν δουλεύει. Έλεγξέ το από το γρανάζι πάνω δεξιά.",
   offline:"Δεν υπάρχει σύνδεση στο ίντερνετ. Συμπλήρωσε με το χέρι ή δοκίμασε αργότερα.",
   no_model:"Το μοντέλο Gemini δεν βρέθηκε. Διάλεξε άλλο από το γρανάζι πάνω δεξιά.",
@@ -728,17 +755,21 @@ function openSettings(force){
   p.hidden = !open; $("gearBtn").setAttribute("aria-expanded", open);
   if (!open) return;
   $("iKey").value = settings.key; $("iModel").value = settings.model; $("setNote").textContent = "";
+  $("aiMode").textContent = settings.key ? "Η ανάγνωση φωτογραφιών γίνεται με το δικό σου κλειδί Gemini."
+    : hasProxy() ? "Η ανάγνωση φωτογραφιών είναι έτοιμη. Δεν χρειάζεται να βάλεις τίποτα."
+    : "Η ανάγνωση φωτογραφιών δεν είναι ρυθμισμένη σε αυτή την έκδοση. Βάλε δικό σου κλειδί παρακάτω.";
+  $("ownKey").open = !!settings.key || !hasProxy();
   p.scrollIntoView({behavior:"smooth", block:"start"});
 }
 $("gearBtn").onclick = () => openSettings(false);
 function applySettings(){
   settings.key = $("iKey").value.trim(); settings.model = $("iModel").value;
   store.set("geminiKey", settings.key); store.set("geminiModel", settings.model);
-  $("setupCard").hidden = !!settings.key;
+  $("setupCard").hidden = sample.ready();
 }
 $("setSave").onclick = () => {
   applySettings();
-  $("setNote").textContent = settings.key ? "Αποθηκεύτηκε." : "Αποθηκεύτηκε χωρίς κλειδί. Οι φωτογραφίες δεν θα διαβάζονται.";
+  $("setNote").textContent = sample.ready() ? "Αποθηκεύτηκε." : "Αποθηκεύτηκε χωρίς κλειδί. Οι φωτογραφίες δεν θα διαβάζονται.";
   $("setNote").className = "note ok";
 };
 $("keyTest").onclick = async () => {
@@ -746,7 +777,7 @@ $("keyTest").onclick = async () => {
   const n = $("setNote"); n.className = "note"; n.textContent = "Δοκιμάζω…";
   try{
     const r = await geminiJson('Reply with only this JSON: {"ok": true}');
-    n.textContent = r?.ok ? "Το κλειδί δουλεύει." : "Απάντησε, αλλά κάτι δεν πήγε καλά. Δοκίμασε άλλο μοντέλο.";
+    n.textContent = r?.ok ? "Η ανάγνωση δουλεύει." : "Απάντησε, αλλά κάτι δεν πήγε καλά. Δοκίμασε ξανά αργότερα.";
     n.className = r?.ok ? "note ok" : "note";
   }catch(e){ n.textContent = errText(e?.code); n.className = "note status err"; }
 };
@@ -774,7 +805,7 @@ $("bkImport").onchange = async ev => {
 
 /* ---------- boot ---------- */
 loadLocal(); renderAll();
-$("setupCard").hidden = !!settings.key;
+$("setupCard").hidden = sample.ready();
 $("storeNote").textContent = "Τα δεδομένα αποθηκεύονται μόνο σε αυτό το κινητό. Κράτα αντίγραφο από το γρανάζι.";
 </script>
 </body>

@@ -1,0 +1,8 @@
+name = "kafsima-ai"
+main = "index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+# Κωδικός που στέλνει η εφαρμογή, για να μη χρησιμοποιεί άλλος τον μεσάζοντα.
+APP_TOKEN = "8-DSttwCCyEA-xbe0S9arHZt39l2E8A7"

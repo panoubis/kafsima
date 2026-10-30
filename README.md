@@ -13,6 +13,20 @@
 | `assets/` | Εικονίδιο και οθόνη εκκίνησης |
 | `.github/workflows/android.yml` | Οδηγίες για να χτίζεται το APK online στο GitHub |
 
+## Ανάγνωση φωτογραφιών χωρίς κλειδί στον χρήστη (μία φορά)
+
+Ο φάκελος `worker/` είναι ένας μικρός μεσάζοντας που ανεβαίνει δωρεάν στο Cloudflare και κρατάει το κλειδί Gemini κρυφό.
+Ρυθμίζεται μία φορά, με τρία «μυστικά» στο GitHub (Settings → Secrets and variables → Actions → New repository secret):
+
+| Όνομα μυστικού | Από πού |
+|---|---|
+| `GEMINI_API_KEY` | https://aistudio.google.com/apikey → Create API key |
+| `CLOUDFLARE_ACCOUNT_ID` | dash.cloudflare.com → Workers & Pages → δεξιά «Account ID» |
+| `CLOUDFLARE_API_TOKEN` | dash.cloudflare.com → My Profile → API Tokens → Create Token → «Edit Cloudflare Workers» |
+
+Μετά: Actions → Build Android APK → Run workflow. Το νέο APK διαβάζει φωτογραφίες χωρίς κλειδί.
+Χωρίς τα μυστικά, το APK χτίζεται κανονικά και ζητάει δικό του κλειδί από το γρανάζι.
+
 ## Τρόπος Α: χτίσιμο online στο GitHub (χωρίς εγκαταστάσεις)
 
 1. Φτιάξε δωρεάν λογαριασμό στο https://github.com.
